@@ -1,12 +1,23 @@
 from fastapi import FastAPI
 
 from app.services.hotel_service import hotel_service
+from fastapi import FastAPI, HTTPException
 
 from app.schemas.hotel import (
     AvailabilityRequest,
     AvailabilityResponse,
     ReservationRequest,
     ReservationResponse,
+    CancelReservationResponse,
+)
+
+from app.exceptions.hotel_exp import (
+    RoomNotFoundError,
+    RoomUnavailableError,
+    RoomDisabledError,
+    ReservationAlreadyCancelledError,
+    ReservationNotFoundError,
+    InsufficientCapacityError,
 )
 
 
@@ -44,11 +55,56 @@ async def hotel_availability(
 ):
     return await hotel_service.check_availability(request)
 
+
 @app.post(
     "/hotel/reservations",
-    response_model=ReservationResponse
+    response_model=ReservationResponse,
 )
 async def create_reservation(
-    request: ReservationRequest
+    request: ReservationRequest,
 ):
-    return await hotel_service.create_reservation(request)
+    try:
+        return await hotel_service.create_reservation(
+            request
+        )
+
+    except RoomNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        )
+
+    except (
+        RoomUnavailableError,
+        RoomDisabledError,
+        InsufficientCapacityError,
+    ) as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        )
+
+
+@app.post(
+    "/hotel/reservations/{reservation_id}/cancel",
+    response_model=CancelReservationResponse,
+)
+async def cancel_reservation(
+    reservation_id: int,
+):
+    try:
+        return await hotel_service.cancel_reservation(
+            reservation_id
+        )
+
+    except ReservationNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        )
+
+    except ReservationAlreadyCancelledError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        )

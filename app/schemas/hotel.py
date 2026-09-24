@@ -66,7 +66,6 @@ class ReservationRequest(BaseModel):
 
         return self
 
-
 class ReservationResponse(BaseModel):
     reservation_id: int
     code: str
@@ -76,3 +75,8 @@ class ReservationResponse(BaseModel):
     check_out: date
     total_price: float
     currency: str
+
+class CancelReservationResponse(BaseModel):
+    reservation_id: int
+    code: str
+    status: str

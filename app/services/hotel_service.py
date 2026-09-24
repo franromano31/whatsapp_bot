@@ -7,6 +7,16 @@ from app.schemas.hotel import (
     RoomOption,
     ReservationRequest,
     ReservationResponse,
+    CancelReservationResponse,
+)
+
+from app.exceptions.hotel_exp import (
+    InsufficientCapacityError,
+    ReservationAlreadyCancelledError,
+    ReservationNotFoundError,
+    RoomDisabledError,
+    RoomNotFoundError,
+    RoomUnavailableError, 
 )
 
 
@@ -151,22 +161,20 @@ class HotelService:
         )
 
         if room is None:
-            raise ValueError("La habitación no existe")
+            raise RoomNotFoundError("La habitación no existe")
 
         if not room["enabled"]:
-            raise ValueError("La habitación está deshabilitada")
+            raise RoomDisabledError("La habitación está deshabilitada")
 
         if room["capacity"] < request.guests:
-            raise ValueError(
-                "La habitación no tiene capacidad suficiente"
-            )
+            raise InsufficientCapacityError("La habitación no tiene capacidad suficiente")
 
         if not self._is_room_available(
             room_id=request.room_id,
             check_in=request.check_in,
             check_out=request.check_out,
         ):
-            raise ValueError(
+            raise RoomUnavailableError(
                 "La habitación no está disponible para esas fechas"
             )
 
@@ -237,6 +245,53 @@ class HotelService:
                 return False
 
         return True
+
+    async def cancel_reservation(
+        self,
+        reservation_id: int,
+    ) -> CancelReservationResponse:
+
+        if self.mode == "mock":
+            return self._mock_cancel_reservation(
+                reservation_id
+            )
+
+        raise NotImplementedError(
+            "La cancelación en la API real todavía no está implementada."
+        )
+
+    def _mock_cancel_reservation(
+        self,
+        reservation_id: int,
+    ) -> CancelReservationResponse:
+
+        reservation = next(
+            (
+                reservation
+                for reservation in self.mock_reservations
+                if reservation["reservation_id"]
+                == reservation_id
+            ),
+            None,
+        )
+
+        if reservation is None:
+            raise ReservationNotFoundError(
+                "La reserva no existe"
+            )
+
+        if reservation["status"] == "cancelled":
+            raise ReservationAlreadyCancelledError(
+                "La reserva ya está cancelada"
+            )
+
+        reservation["status"] = "cancelled"
+
+        return CancelReservationResponse(
+            reservation_id=reservation["reservation_id"],
+            code=reservation["code"],
+            status=reservation["status"],
+        )
 
 
 hotel_service = HotelService()
