@@ -2,6 +2,11 @@ from fastapi import FastAPI
 
 from app.services.hotel_service import hotel_service
 
+from app.schemas.hotel import (
+    AvailabilityRequest,
+    AvailabilityResponse,
+)
+
 
 app = FastAPI(
     title="Hotel WhatsApp Bot API",
@@ -26,3 +31,13 @@ def health():
 @app.get("/hotel/test")
 async def test_hotel():
     return await hotel_service.test_connection()
+
+
+@app.post(
+    "/hotel/availability",
+    response_model=AvailabilityResponse
+)
+async def hotel_availability(
+    request: AvailabilityRequest
+):
+    return await hotel_service.check_availability(request)

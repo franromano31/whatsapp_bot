@@ -2,6 +2,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    hotel_api_mode: str = "mock"
+
     hotel_api_url: str = ""
     hotel_api_token: str = ""
 
