@@ -5,6 +5,8 @@ from app.services.hotel_service import hotel_service
 from app.schemas.hotel import (
     AvailabilityRequest,
     AvailabilityResponse,
+    ReservationRequest,
+    ReservationResponse,
 )
 
 
@@ -41,3 +43,12 @@ async def hotel_availability(
     request: AvailabilityRequest
 ):
     return await hotel_service.check_availability(request)
+
+@app.post(
+    "/hotel/reservations",
+    response_model=ReservationResponse
+)
+async def create_reservation(
+    request: ReservationRequest
+):
+    return await hotel_service.create_reservation(request)

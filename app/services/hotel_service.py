@@ -5,6 +5,8 @@ from app.schemas.hotel import (
     AvailabilityRequest,
     AvailabilityResponse,
     RoomOption,
+    ReservationRequest,
+    ReservationResponse,
 )
 
 
@@ -35,6 +37,18 @@ class HotelService:
             "La conexión con la API real todavía no está implementada."
         )
 
+    async def create_reservation(
+    self,
+        request: ReservationRequest
+    ) -> ReservationResponse:
+
+        if self.mode == "mock":
+            return self._mock_create_reservation(request)
+
+        raise NotImplementedError(
+            "La creación de reservas en la API real todavía no está implementada."
+        )
+
     def _mock_availability(
         self,
         request: AvailabilityRequest
@@ -60,6 +74,27 @@ class HotelService:
             check_out=request.check_out,
             guests=request.guests,
             options=[option]
+        )
+
+    def _mock_create_reservation(
+        self,
+        request: ReservationRequest
+    ) -> ReservationResponse:
+
+        nights = (request.check_out - request.check_in).days
+
+        price_per_night = 120000
+        total_price = price_per_night * nights
+
+        return ReservationResponse(
+            reservation_id=92831,
+            code="RES-92831",
+            status="pending_payment",
+            room_id=request.room_id,
+            check_in=request.check_in,
+            check_out=request.check_out,
+            total_price=total_price,
+            currency="ARS"
         )
 
 
