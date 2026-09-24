@@ -17,17 +17,57 @@ class HotelService:
         self.token = settings.hotel_api_token
         self.mode = settings.hotel_api_mode
 
+        # Base de datos ficticia de habitaciones
+        self.mock_rooms = [
+            {
+                "room_id": 14,
+                "room_type": "Doble Superior",
+                "capacity": 2,
+                "price_per_night": 120000,
+                "enabled": True,
+            },
+            {
+                "room_id": 15,
+                "room_type": "Doble Standard",
+                "capacity": 2,
+                "price_per_night": 95000,
+                "enabled": True,
+            },
+            {
+                "room_id": 20,
+                "room_type": "Triple Superior",
+                "capacity": 3,
+                "price_per_night": 150000,
+                "enabled": True,
+            },
+            {
+                "room_id": 25,
+                "room_type": "Cuádruple Familiar",
+                "capacity": 4,
+                "price_per_night": 180000,
+                "enabled": False,
+            },
+        ]
+
+        # Reservas ficticias
+        self.mock_reservations = []
+
+        # Para generar IDs
+        self.next_reservation_id = 1
+
     async def test_connection(self):
         return {
             "mode": self.mode,
             "base_url": self.base_url,
-            "configured": self.mode == "mock"
-            or bool(self.base_url and self.token)
+            "configured": (
+                self.mode == "mock"
+                or bool(self.base_url and self.token)
+            ),
         }
 
     async def check_availability(
         self,
-        request: AvailabilityRequest
+        request: AvailabilityRequest,
     ) -> AvailabilityResponse:
 
         if self.mode == "mock":
@@ -38,8 +78,8 @@ class HotelService:
         )
 
     async def create_reservation(
-    self,
-        request: ReservationRequest
+        self,
+        request: ReservationRequest,
     ) -> ReservationResponse:
 
         if self.mode == "mock":
@@ -51,51 +91,152 @@ class HotelService:
 
     def _mock_availability(
         self,
-        request: AvailabilityRequest
+        request: AvailabilityRequest,
     ) -> AvailabilityResponse:
 
         nights = (request.check_out - request.check_in).days
 
-        price_per_night = 120000
+        options = []
 
-        option = RoomOption(
-            room_id=14,
-            room_type="Doble Superior",
-            capacity=2,
-            meal_plan=request.meal_plan,
-            price_per_night=price_per_night,
-            total_price=price_per_night * nights,
-            currency="ARS"
-        )
+        for room in self.mock_rooms:
+
+            # Habitación deshabilitada
+            if not room["enabled"]:
+                continue
+
+            # No entran los huéspedes
+            if room["capacity"] < request.guests:
+                continue
+
+            # Está ocupada en esas fechas
+            if not self._is_room_available(
+                room_id=room["room_id"],
+                check_in=request.check_in,
+                check_out=request.check_out,
+            ):
+                continue
+
+            option = RoomOption(
+                room_id=room["room_id"],
+                room_type=room["room_type"],
+                capacity=room["capacity"],
+                meal_plan=request.meal_plan,
+                price_per_night=room["price_per_night"],
+                total_price=room["price_per_night"] * nights,
+                currency="ARS",
+            )
+
+            options.append(option)
 
         return AvailabilityResponse(
-            available=True,
+            available=len(options) > 0,
             check_in=request.check_in,
             check_out=request.check_out,
             guests=request.guests,
-            options=[option]
+            options=options,
         )
 
     def _mock_create_reservation(
         self,
-        request: ReservationRequest
+        request: ReservationRequest,
     ) -> ReservationResponse:
 
-        nights = (request.check_out - request.check_in).days
+        room = next(
+            (
+                room
+                for room in self.mock_rooms
+                if room["room_id"] == request.room_id
+            ),
+            None,
+        )
 
-        price_per_night = 120000
-        total_price = price_per_night * nights
+        if room is None:
+            raise ValueError("La habitación no existe")
+
+        if not room["enabled"]:
+            raise ValueError("La habitación está deshabilitada")
+
+        if room["capacity"] < request.guests:
+            raise ValueError(
+                "La habitación no tiene capacidad suficiente"
+            )
+
+        if not self._is_room_available(
+            room_id=request.room_id,
+            check_in=request.check_in,
+            check_out=request.check_out,
+        ):
+            raise ValueError(
+                "La habitación no está disponible para esas fechas"
+            )
+
+        nights = (
+            request.check_out - request.check_in
+        ).days
+
+        total_price = (
+            room["price_per_night"] * nights
+        )
+
+        reservation_id = self.next_reservation_id
+        self.next_reservation_id += 1
+
+        code = f"RES-{reservation_id:05d}"
+
+        reservation = {
+            "reservation_id": reservation_id,
+            "code": code,
+            "status": "pending_payment",
+            "room_id": request.room_id,
+            "check_in": request.check_in,
+            "check_out": request.check_out,
+            "guests": request.guests,
+            "meal_plan": request.meal_plan,
+            "guest": request.guest,
+            "total_price": total_price,
+            "currency": "ARS",
+        }
+
+        self.mock_reservations.append(reservation)
 
         return ReservationResponse(
-            reservation_id=92831,
-            code="RES-92831",
+            reservation_id=reservation_id,
+            code=code,
             status="pending_payment",
             room_id=request.room_id,
             check_in=request.check_in,
             check_out=request.check_out,
             total_price=total_price,
-            currency="ARS"
+            currency="ARS",
         )
+
+    def _is_room_available(
+        self,
+        room_id: int,
+        check_in: date,
+        check_out: date,
+    ) -> bool:
+
+        for reservation in self.mock_reservations:
+
+            if reservation["room_id"] != room_id:
+                continue
+
+            if reservation["status"] == "cancelled":
+                continue
+
+            existing_check_in = reservation["check_in"]
+            existing_check_out = reservation["check_out"]
+
+            overlaps = (
+                check_in < existing_check_out
+                and check_out > existing_check_in
+            )
+
+            if overlaps:
+                return False
+
+        return True
 
 
 hotel_service = HotelService()
