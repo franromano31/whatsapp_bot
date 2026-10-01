@@ -3,6 +3,8 @@ from fastapi import FastAPI
 from app.services.hotel_service import hotel_service
 from fastapi import FastAPI, HTTPException
 
+from app.core.database import test_database_connection
+
 from app.schemas.hotel import (
     AvailabilityRequest,
     AvailabilityResponse,
@@ -108,3 +110,12 @@ async def cancel_reservation(
             status_code=409,
             detail=str(exc),
         )
+
+@app.get("/db/test")
+def test_database():
+    result = test_database_connection()
+
+    return {
+        "database": "connected",
+        "result": result,
+    }
