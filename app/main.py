@@ -3,7 +3,17 @@ from fastapi import FastAPI
 from app.services.hotel_service import hotel_service
 from fastapi import FastAPI, HTTPException
 
-from app.core.database import test_database_connection
+from app.core.database import test_database_connection, Base, engine
+from app.models.user import User
+from sqlalchemy import inspect
+
+
+from app.schemas.user import (
+    UserCreate,
+    UserResponse,
+)
+
+from app.services.user_service import user_service
 
 from app.schemas.hotel import (
     AvailabilityRequest,
@@ -22,11 +32,15 @@ from app.exceptions.hotel_exp import (
     InsufficientCapacityError,
 )
 
+from app.exceptions.user_exp import UserAlreadyExistsError
+
 
 app = FastAPI(
     title="Hotel WhatsApp Bot API",
     version="0.1.0"
 )
+
+Base.metadata.create_all(bind=engine)
 
 
 @app.get("/")
@@ -119,3 +133,41 @@ def test_database():
         "database": "connected",
         "result": result,
     }
+
+@app.get("/db/tables")
+def get_database_tables():
+    inspector = inspect(engine)
+
+    return {
+        "tables": inspector.get_table_names()
+    }
+
+@app.post(
+    "/users",
+    response_model=UserResponse,
+)
+def create_user(request: UserCreate):
+
+    try:
+        return user_service.create_user(request)
+
+    except UserAlreadyExistsError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        )
+
+
+@app.get(
+    "/users/by-phone/{phone}",
+    response_model=UserResponse | None,
+)
+def get_user_by_phone(phone: str):
+    return user_service.get_user_by_phone(phone)
+
+@app.post(
+    "/users/resolve/{phone}",
+    response_model=UserResponse,
+)
+def resolve_user(phone: str):
+    return user_service.get_or_create_user(phone)
